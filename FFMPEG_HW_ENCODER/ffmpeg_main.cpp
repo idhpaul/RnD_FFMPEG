@@ -8,7 +8,6 @@
         ffmpeg -i input320x180.mp4 -vf format=nv12 -f rawvideo out_nv12.yuv
 */
 
-
 //#define _CRT_SECURE_NO_WARNINGS
 #pragma warning(disable : 4996)
 #include "ffmpeg_main.h"
