@@ -21,7 +21,10 @@
     <ClCompile Include="ffmpeg_origin_example_qsvdec.c">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="ffmpeg_origin_example_scaling_video.c">
+    <ClCompile Include="ffmpeg_origin_example_scaling_video%28YUV420p to RGB%29.c">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="ffmpeg_origin_example_scaling_video%28BGRA to YUV420p%29.c">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
