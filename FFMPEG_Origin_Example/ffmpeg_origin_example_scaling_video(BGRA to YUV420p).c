@@ -36,7 +36,7 @@
 #pragma comment(lib,"swscale.lib")
 #pragma comment( lib, "avutil.lib" )
 
-char input_url[] = "test_bgra.bgra";
+char input_url[] = "out.bgra";
 
 static void fill_yuv_image(uint8_t* data[4], int linesize[4],
     int width, int height, int frame_index)
@@ -55,50 +55,91 @@ static void fill_yuv_image(uint8_t* data[4], int linesize[4],
     }
 }
 
-static void read_file_bgra(FILE* srcfile, uint8_t* data[4], int linesize[4], int width, int height, int frame_index)
+static void read_file_bgra(FILE* srcfile, uint8_t* data[4], int linesize[4], int width, int height, int buffsize)
 {
     int err;
 
-    size_t readsize = linesize[0];
-
-    if ((err = fread(data[0], (width*height), 1, srcfile)) <= 0) // read Packed BGRA data
+    if ((err = fread((uint8_t*)data[0], 1, buffsize, srcfile)) <= 0) // read Packed BGRA data
     {
         printf("Failed to read BGRA data from file : %d\n", err);
     }
 
-    printf("read data : %d\n", err);
+    printf("read file data : %d\n", err);
 }
 
-static void write_file_yuv420(FILE* dstfile, uint8_t* data[4], int linesize[4], int width, int height, int frame_index)
+static void write_file_yuv420(FILE* dstfile, uint8_t* data[4], int* linesize, int width, int height, int buffsize)
 {
     int err;
+    int wirtesize = 0;
 
-    if ((err = fwrite((uint8_t*)(data[0][linesize[0]]), linesize[0], 1, dstfile)) <= 0) // write Y(YUV420p)
+    wirtesize = buffsize;
+    printf("Wirte Y Planar write size : %d \n", wirtesize);
+    if ((err = fwrite((uint8_t*)(data[0]), 1, wirtesize, dstfile)) <= 0) // write Y(YUV420p)
     {
         printf("Failed to Write Y data from file : %d\n", err);
     }
+    printf("Write Y : %d\n", err);
 
-    if ((err = fwrite((uint8_t*)(data[1][linesize[1]]), linesize[1], 1, dstfile)) <= 0) // write U(YUV420p)
+    //wirtesize = buffsize / 2;
+    //printf("Wirte U Planar write size : %d \n", wirtesize);
+    //if ((err = fwrite((uint8_t*)(data[1]), 1, wirtesize, dstfile)) <= 0) // write U(YUV420p)
+    //{
+    //    printf("Failed to Write U data from file : %d\n", err);
+    //}
+    //printf("Write U : %d\n", err);
+
+    //wirtesize = buffsize / 2;
+    //printf("Wirte V Planar write size : %d \n", wirtesize);
+    //if ((err = fwrite((uint8_t*)(data[2]), 1, wirtesize, dstfile)) <= 0) // write V(YUV420p)
+    //{
+    //    printf("Failed to Write V data from file : %d\n", err);
+    //}
+    //printf("Write V : %d\n", err);
+
+}
+
+static void write_file_nv12(FILE* dstfile, uint8_t* data[4], int* linesize, int width, int height, int buffsize)
+{
+    int err;
+    int wirtesize = 0;
+
+    wirtesize = buffsize;
+    printf("Wirte Y Planar write size : %d \n", wirtesize);
+    if ((err = fwrite((uint8_t*)(data[0]), 1, wirtesize, dstfile)) <= 0) // write Y(YUV420p)
     {
         printf("Failed to Write Y data from file : %d\n", err);
     }
+    printf("Write Y : %d\n", err);
 
-    if ((err = fwrite((uint8_t*)(data[2][linesize[2]]), linesize[2], 1, dstfile)) <= 0) // write V(YUV420p)
-    {
-        printf("Failed to Write Y data from file : %d\n", err);
-    }
+    //wirtesize = buffsize / 2;
+    //printf("Wirte U Planar write size : %d \n", wirtesize);
+    //if ((err = fwrite((uint8_t*)(data[1]), 1, wirtesize, dstfile)) <= 0) // write U(YUV420p)
+    //{
+    //    printf("Failed to Write U data from file : %d\n", err);
+    //}
+    //printf("Write U : %d\n", err);
+
+    //wirtesize = buffsize / 2;
+    //printf("Wirte V Planar write size : %d \n", wirtesize);
+    //if ((err = fwrite((uint8_t*)(data[2]), 1, wirtesize, dstfile)) <= 0) // write V(YUV420p)
+    //{
+    //    printf("Failed to Write V data from file : %d\n", err);
+    //}
+    //printf("Write V : %d\n", err);
+
 }
 
 int main(int argc, char** argv)
 {
     uint8_t* src_data[4], * dst_data[4];
     int src_linesize[4], dst_linesize[4];
-    int src_w = 320, src_h = 180, dst_w, dst_h;
-    enum AVPixelFormat src_pix_fmt = AV_PIX_FMT_BGRA, dst_pix_fmt = AV_PIX_FMT_YUV420P/*AV_PIX_FMT_RGB24*/;
+    int src_w = 1280, src_h = 720, dst_w, dst_h;
+    enum AVPixelFormat src_pix_fmt = AV_PIX_FMT_BGRA, dst_pix_fmt = AV_PIX_FMT_NV12/*AV_PIX_FMT_RGB24*/;
     const char* dst_size = NULL;
     const char* dst_filename = NULL;
-    FILE* fin = NULL;
+    FILE* src_file = NULL;
     FILE* dst_file = NULL;
+    int src_bufsize;
     int dst_bufsize;
     struct SwsContext* sws_ctx;
     int i, ret;
@@ -111,7 +152,7 @@ int main(int argc, char** argv)
         exit(1);
     }
 
-    if (!(fin = fopen(input_url, "rb"))) {
+    if (!(src_file = fopen(input_url, "rb"))) {
         fprintf(stderr, "Fail to open input file : %s\n", strerror(errno));
         return -1;
     }
@@ -149,40 +190,31 @@ int main(int argc, char** argv)
         fprintf(stderr, "Could not allocate source image\n");
         goto end;
     }
+
+    src_bufsize = ret;
+    printf("Source image alloc size : %d\n", src_bufsize);
+
     /* buffer is going to be written to rawvideo file, no alignment */
     if ((ret = av_image_alloc(dst_data, dst_linesize,
         dst_w, dst_h, dst_pix_fmt, 16)) < 0) {
         fprintf(stderr, "Could not allocate destination image\n");
         goto end;
     }
+
     dst_bufsize = ret;
+    printf("Destination image alloc size : %d\n", dst_bufsize);
 
-    int err = 0;
-
-    for (i = 0; i < 100; i++) {
+    for (i = 0; i < 2000; i++) {
         /* generate synthetic video */
         //fill_yuv_image(src_data, src_linesize, src_w, src_h, i);
-        //read_file_bgra(fin, src_data, src_linesize, src_w, src_h, i);
-
-        uint8_t* temp = (uint8_t*)malloc(src_linesize[0]);
-
-        if ((err = fread((uint8_t*)temp, src_linesize[0], 1, fin)) <= 0) // read Packed BGRA data
-        {
-            printf("Failed to read BGRA data from file : %d\n", err);
-        }
-
-        src_data[0] = temp;
+        read_file_bgra(src_file, src_data, src_linesize, src_w, src_h, src_bufsize);
         
         /* convert to destination format */
         sws_scale(sws_ctx, (const uint8_t* const*)src_data,
             src_linesize, 0, src_h, dst_data, dst_linesize);
 
-        write_file_yuv420(dst_file, dst_data, dst_linesize, dst_w, dst_h, i);
-
-        free(temp);
-
-        /* write scaled image to file */
-        //fwrite(dst_data[0], 1, dst_bufsize, dst_file);
+        //write_file_yuv420(dst_file, dst_data, &dst_linesize, dst_w, dst_h, dst_bufsize);
+        write_file_nv12(dst_file, dst_data, &dst_linesize, dst_w, dst_h, dst_bufsize);
 
         printf("Processing : %d\n", i + 1);
     }
@@ -190,6 +222,7 @@ int main(int argc, char** argv)
         "ffplay -f rawvideo -pix_fmt %s -video_size %dx%d %s\n",
         av_get_pix_fmt_name(dst_pix_fmt), dst_w, dst_h, dst_filename);
 end:
+    fclose(src_file);
     fclose(dst_file);
     av_freep(&src_data[0]);
     av_freep(&dst_data[0]);

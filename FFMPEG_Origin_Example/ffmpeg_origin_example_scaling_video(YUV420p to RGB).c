@@ -61,7 +61,7 @@ int main(int argc, char** argv)
     FILE* dst_file;
     int dst_bufsize;
     struct SwsContext* sws_ctx;
-    int i, ret;
+    int i, ret, err;
     if (argc != 3) {
         fprintf(stderr, "Usage: %s output_file output_size\n"
             "API example program to show how to scale an image with libswscale.\n"
@@ -116,7 +116,7 @@ int main(int argc, char** argv)
         sws_scale(sws_ctx, (const uint8_t* const*)src_data,
             src_linesize, 0, src_h, dst_data, dst_linesize);
         /* write scaled image to file */
-        fwrite(dst_data[0], 1, dst_bufsize, dst_file);
+        err=fwrite(dst_data[0], 1, dst_bufsize, dst_file);
 
         printf("Processing : %d\n", i+1);
     }

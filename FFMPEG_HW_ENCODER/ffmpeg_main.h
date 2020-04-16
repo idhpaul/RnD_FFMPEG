@@ -10,6 +10,7 @@ extern "C"
 #include <libavutil/hwcontext.h>
 #include <libavutil/avassert.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/parseutils.h>
 #include <libavutil/opt.h>
 }
 

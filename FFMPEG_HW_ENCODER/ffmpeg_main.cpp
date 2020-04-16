@@ -74,25 +74,43 @@ end:
     return ret;
 }
 
-char input_url[] = R"(out_yuv420.yuv)";
+static void read_file_bgra(FILE* srcfile, uint8_t* data[4], int linesize[4], int width, int height, int buffsize)
+{
+    int err;
+
+    if ((err = fread((uint8_t*)data[0], 1, buffsize, srcfile)) <= 0) // read Packed BGRA data
+    {
+        printf("Failed to read BGRA data from file : %d\n", err);
+    }
+
+    printf("read file data : %d\n", err);
+}
+
+char input_url[] = R"(out.bgra)";
 char output_url[] = R"(test.h264)";
 
 int main(int argc, char* argv[])
 {
     int size, err;
     FILE* fin = NULL, * fout = NULL;
+
+    uint8_t* src_data[4], * dst_data[4];
+    int src_linesize[4], dst_linesize[4];
+
+    int src_bufsize;
+
     AVFrame* sw_frame = NULL, * hw_frame = NULL;
     AVCodecContext* avctx = NULL;
     AVCodec* codec = NULL;
     SwsContext* _swsCtx = nullptr;
 
-
     const char* enc_name = "h264_qsv";
 
+    int ret;
     int frames = 1000;
 
-    width = 320;
-    height = 180;
+    width = 1280;
+    height = 720;
     size = width * height;
 
     if (!(fin = fopen(input_url, "r+b"))) {
@@ -141,7 +159,45 @@ int main(int argc, char* argv[])
         goto close;
     }
 
-    while (--frames > 0) {
+    /* create scaling context */
+    _swsCtx = sws_getContext(width, height, AV_PIX_FMT_BGRA,
+        width, height, AV_PIX_FMT_NV12,
+        SWS_BICUBIC, NULL, NULL, NULL);
+    if (!_swsCtx) {
+        fprintf(stderr,
+            "Impossible to create scale context for the conversion "
+            "fmt:%s s:%dx%d -> fmt:%s s:%dx%d\n",
+            av_get_pix_fmt_name(AV_PIX_FMT_BGRA), width, height,
+            av_get_pix_fmt_name(AV_PIX_FMT_NV12), width, height);
+        //ret = AVERROR(EINVAL);
+        goto close;
+    }
+
+    /* allocate source and destination image buffers */
+    if ((ret = av_image_alloc(src_data, src_linesize,
+        width, height, AV_PIX_FMT_BGRA, 1)) < 0) {
+        fprintf(stderr, "Could not allocate source image\n");
+        goto close;
+    }
+    src_bufsize = ret;
+    printf("Source image alloc size : %d\n", src_bufsize);
+
+    /* buffer is going to be written to rawvideo file, no alignment */
+    if ((ret = av_image_alloc(dst_data, dst_linesize,
+        width, height, AV_PIX_FMT_NV12, 16)) < 0) {
+        fprintf(stderr, "Could not allocate destination image\n");
+        goto close;
+    }
+
+    while (--frames > 0)
+    {
+        /* generate synthetic video */
+        read_file_bgra(fin, src_data, src_linesize, width, height, src_bufsize);
+
+        /* convert to destination format */
+        sws_scale(_swsCtx, (const uint8_t* const*)src_data,
+            src_linesize, 0, height, dst_data, dst_linesize);
+
         if (!(sw_frame = av_frame_alloc())) {
             err = AVERROR(ENOMEM);
             goto close;
@@ -153,10 +209,13 @@ int main(int argc, char* argv[])
         if ((err = av_frame_get_buffer(sw_frame, 32)) < 0)
             goto close;
 
-        if ((err = fread((uint8_t*)(sw_frame->data[0]), size, 1, fin)) <= 0) // read Y(NV12)
-            break;
-        if ((err = fread((uint8_t*)(sw_frame->data[1]), size / 2 , 1, fin)) <= 0) // read UV(NU12)
-            break;
+        memcpy(sw_frame->data[0], dst_data[0], size);
+        memcpy(sw_frame->data[1], dst_data[1], size/2);
+
+        //if ((err = fread((uint8_t*)(sw_frame->data[0]), size, 1, fin)) <= 0) // read Y(NV12)
+        //    break;
+        //if ((err = fread((uint8_t*)(sw_frame->data[1]), size / 2 , 1, fin)) <= 0) // read UV(NU12)
+        //    break;
 
         if (!(hw_frame = av_frame_alloc())) {
             err = AVERROR(ENOMEM);
